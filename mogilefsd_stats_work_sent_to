@@ -1,0 +1,69 @@
+#!/usr/bin/perl
+#
+# work_sent_to_delete ... The number of processed delete worker
+# work_sent_to_fsck ... The number of processed fsck worker
+# work_sent_to_replicate ... The number of processed replicate worker
+#
+use strict;
+use warnings;
+use IO::Socket;
+
+if ( @ARGV and $ARGV[0] eq 'config' ) {
+  print_config();
+}
+else {
+  print_stat();
+}
+
+exit;
+
+sub print_config {
+    print <<"...";
+graph_title    Mogilefs stats work_sent_to
+graph_vlabel   size of work_sent
+graph_category mogilefs
+work_sent_to_delete.label     work_sent_to_delete
+work_sent_to_delete.colour    4444ff
+work_sent_to_fsck.label       work_sent_to_fsck
+work_sent_to_fsck.colour      ff0000
+work_sent_to_replicate.label  work_sent_to_replicate
+work_sent_to_replicate.colour ffff00
+...
+}
+
+sub print_stat {
+    my $host = $ENV{'host'} || '127.0.0.1';
+    my $port = $ENV{'port'} || 7001;
+
+    my $sock = IO::Socket::INET->new(
+        PeerAddr => $host,
+        PeerPort => $port,
+        Proto    => 'tcp',
+    );
+
+    die $! unless $sock;
+
+    print $sock "!stats\n";
+
+    my %stats;
+    while ( my $line = <$sock> ) {
+        last if $line =~ /^\./;
+        chomp $line;
+        my @parts = split ' ', $line;
+        $stats{$parts[0]} = $parts[1];
+    }
+
+    $sock->close;
+
+    my @categories = qw(
+        work_sent_to_delete
+        work_sent_to_fsck
+        work_sent_to_replicate
+    );
+
+    foreach my $category (@categories) {
+        my $value = $stats{$category} || 0;
+        print "${category}.value ${value}\n";
+    }
+
+}

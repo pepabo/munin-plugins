@@ -1,0 +1,65 @@
+#!/usr/bin/perl
+#
+# bored_queryworkers ... The number of idle workers
+# pending_queries ... The number of workers queued queries
+# processing_queries ... The number of workers processing requests
+
+use strict;
+use warnings;
+use IO::Socket;
+
+if ( @ARGV and $ARGV[0] eq 'config' ) {
+  print_config();
+}
+else {
+  print_stat();
+}
+
+exit;
+
+sub print_config {
+    print <<"...";
+graph_title               Queries handled by mogilefsd
+graph_vlabel              number of queries
+graph_category            mogilefs
+graph_args                --base 1000 -l 0
+processing_queries.draw   AREA
+processing_queries.label  processing_queries
+processing_queries.colour ff0000
+bored_queryworkers.draw   STACK
+bored_queryworkers.label  bored_queryworkers
+bored_queryworkers.colour 4444ff
+pending_queries.draw      STACK
+pending_queries.label     pending_queries
+pending_queries.colour    ffff00
+...
+}
+
+sub print_stat {
+    my $host = $ENV{'host'} || '127.0.0.1';
+    my $port = $ENV{'port'} || 7001;
+
+    my $sock = IO::Socket::INET->new(
+        PeerAddr => $host,
+        PeerPort => $port,
+        Proto    => 'tcp',
+    );
+
+    die $! unless $sock;
+
+    print $sock "!stats\n";
+
+    my %stats;
+    while ( my $line = <$sock> ) {
+        last if $line =~ /^\./;
+        chomp $line;
+        my @parts = split ' ', $line;
+        $stats{$parts[0]} = $parts[1];
+    }
+
+    $sock->close;
+
+    print "bored_queryworkers.value $stats{bored_queryworkers}\n";
+    print "pending_queries.value $stats{pending_queries}\n";
+    print "processing_queries.value $stats{processing_queries}\n";
+}
