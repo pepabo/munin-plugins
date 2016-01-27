@@ -1,0 +1,54 @@
+#!/usr/bin/perl
+#
+# queries ... The number of queries requested from MogileFS clients
+#
+use strict;
+use warnings;
+use IO::Socket;
+
+if ( @ARGV and $ARGV[0] eq 'config' ) {
+  print_config();
+}
+else {
+  print_stat();
+}
+
+exit;
+
+sub print_config {
+    print <<"...";
+graph_title    mogilefsd stats queries
+graph_vlabel   number of queries
+graph_category mogilefs
+queries.label  queries
+queries.colour ff0000
+...
+}
+
+sub print_stat {
+    my $host = $ENV{'host'} || '127.0.0.1';
+    my $port = $ENV{'port'} || 7001;
+
+    my $sock = IO::Socket::INET->new(
+        PeerAddr => $host,
+        PeerPort => $port,
+        Proto    => 'tcp',
+    );
+
+    die $! unless $sock;
+
+    print $sock "!stats\n";
+
+    my %stats;
+    while ( my $line = <$sock> ) {
+        last if $line =~ /^\./;
+        chomp $line;
+        my @parts = split ' ', $line;
+        $stats{$parts[0]} = $parts[1];
+    }
+
+    $sock->close;
+
+    my $value = $stats{queries} || 0;
+    print "queries.value ${value}\n";
+}
